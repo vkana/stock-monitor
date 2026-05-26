@@ -30,9 +30,38 @@ async function checkPinCode(pinCode) {
   const page = await context.newPage();
 
   await page.goto('https://blinkit.com/s/?q=maagaani', { waitUntil: 'networkidle' });
-  // reliable selector for Blinkit delivery input
-  const locationInput = 'input[name="select-locality"], input[placeholder="search delivery location"]';
-  await page.waitForSelector(locationInput, { timeout: 30000 });
+  // try multiple selectors for the delivery input (more robust in CI)
+  const candidateSelectors = [
+    'input[name="select-locality"]',
+    'input[placeholder="search delivery location"]',
+    'input[placeholder*=delivery]',
+    'input[aria-label*=delivery]',
+    'input[type="text"]',
+  ];
+  let locationInput = null;
+  for (const sel of candidateSelectors) {
+    try {
+      await page.waitForSelector(sel, { timeout: 5000, state: 'visible' });
+      locationInput = sel;
+      break;
+    } catch (e) {
+      // try next
+    }
+  }
+
+  if (!locationInput) {
+    // capture debug artifacts for CI investigation
+    const fs = require('fs');
+    const path = require('path');
+    const debugDir = path.join(process.cwd(), 'test-results', 'debug');
+    if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+    const base = path.join(debugDir, pinCode.replace(/\W/g, '_'));
+    await page.screenshot({ path: `${base}.png`, fullPage: true }).catch(() => {});
+    const html = await page.content();
+    fs.writeFileSync(`${base}.html`, html);
+    await browser.close();
+    throw new Error(`Delivery input not found for pin ${pinCode}. Debug saved to ${base}.*`);
+  }
 
   await page.click(locationInput);
   await page.fill(locationInput, pinCode);

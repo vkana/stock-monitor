@@ -5,6 +5,8 @@ on:
   schedule:
     - cron: '0 */2 * * *'  # every 2 hours
   workflow_dispatch:         # allows manual trigger
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   monitor:
